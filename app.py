@@ -247,7 +247,7 @@ def main():
     init_session_state()
     
     # Titolo
-    st.title("📊 Analisi Politiche")
+    st.title("📊 Analisi Politiche attive progetto GOL - Girasole")
     st.markdown("Carica un file Excel per analizzare conteggi e ricavi delle azioni.")
     
     # Sidebar
