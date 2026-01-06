@@ -1,5 +1,5 @@
 """
-Export dei dati in formato Excel con formattazione professionale.
+Export dei dati in formato Excel con formattazione professionale e grafici.
 """
 
 import pandas as pd
@@ -8,12 +8,16 @@ from typing import Dict, List
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.utils import get_column_letter
+from openpyxl.chart import LineChart, BarChart, PieChart, Reference
+from openpyxl.chart.label import DataLabelList
+from openpyxl.chart.series import DataPoint
 
 from .analysis import AnalisiPolitiche
 
 
 class ExcelExporter:
-    """Esporta i dati in formato Excel con formattazione."""
+    """Esporta i dati in formato Excel con formattazione e grafici."""
     
     # Stili
     HEADER_FILL = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
@@ -24,6 +28,9 @@ class ExcelExporter:
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
+    
+    # Colori per i grafici
+    CHART_COLORS = ['4472C4', 'ED7D31', '70AD47', 'FFC000', '5B9BD5', 'A5A5A5']
     
     def __init__(self, analisi: AnalisiPolitiche, df_scartate: pd.DataFrame):
         """
@@ -54,13 +61,6 @@ class ExcelExporter:
         """
         Scrive un DataFrame in un foglio Excel con formattazione.
         
-        Args:
-            ws: Worksheet
-            df: DataFrame da scrivere
-            start_row: Riga di partenza
-            num_cols_start: Colonna da cui iniziano i numeri (per allineamento)
-            bold_total_row: Se True, evidenzia le righe con "TOTALE"
-        
         Returns:
             Numero di righe scritte
         """
@@ -76,9 +76,109 @@ class ExcelExporter:
         
         return len(df) + 1  # +1 per header
     
+    def _create_line_chart(self, ws_data, data_start_row: int, data_end_row: int, 
+                           num_series: int, title: str) -> LineChart:
+        """
+        Crea un grafico a linee per l'andamento mensile.
+        
+        Args:
+            ws_data: Worksheet con i dati
+            data_start_row: Riga iniziale dei dati
+            data_end_row: Riga finale dei dati
+            num_series: Numero di serie dati (tipi + totale)
+            title: Titolo del grafico
+        """
+        chart = LineChart()
+        chart.title = title
+        chart.style = 10
+        chart.y_axis.title = "Quantità"
+        chart.x_axis.title = "Mese"
+        chart.width = 18
+        chart.height = 10
+        
+        # Dati per le serie (colonne dalla 2 in poi)
+        data = Reference(ws_data, min_col=2, min_row=data_start_row, 
+                        max_col=1 + num_series, max_row=data_end_row)
+        
+        # Categorie (mesi - colonna 1)
+        cats = Reference(ws_data, min_col=1, min_row=data_start_row + 1, 
+                        max_row=data_end_row)
+        
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        
+        # Stile linee
+        for i, series in enumerate(chart.series):
+            series.smooth = False
+            series.marker.symbol = "circle"
+            series.marker.size = 7
+        
+        return chart
+    
+    def _create_bar_chart(self, ws_data, data_start_row: int, data_end_row: int,
+                          title: str) -> BarChart:
+        """
+        Crea un grafico a barre orizzontali per i ricavi.
+        """
+        chart = BarChart()
+        chart.type = "bar"  # Barre orizzontali
+        chart.style = 10
+        chart.title = title
+        chart.y_axis.title = "Codice Azione"
+        chart.x_axis.title = "Ricavo (€)"
+        chart.width = 18
+        chart.height = 10
+        
+        # Dati ricavi (colonna 2)
+        data = Reference(ws_data, min_col=2, min_row=data_start_row, 
+                        max_row=data_end_row)
+        
+        # Categorie (codici - colonna 1)
+        cats = Reference(ws_data, min_col=1, min_row=data_start_row + 1, 
+                        max_row=data_end_row)
+        
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        
+        # Mostra etichette dati
+        chart.dataLabels = DataLabelList()
+        chart.dataLabels.showVal = True
+        chart.dataLabels.numFmt = '€#,##0'
+        
+        return chart
+    
+    def _create_pie_chart(self, ws_data, data_start_row: int, data_end_row: int,
+                          title: str) -> PieChart:
+        """
+        Crea un grafico a torta per utenti per operatore.
+        """
+        chart = PieChart()
+        chart.title = title
+        chart.width = 14
+        chart.height = 10
+        
+        # Dati (colonna 2)
+        data = Reference(ws_data, min_col=2, min_row=data_start_row, 
+                        max_row=data_end_row)
+        
+        # Categorie (operatori - colonna 1)
+        cats = Reference(ws_data, min_col=1, min_row=data_start_row + 1, 
+                        max_row=data_end_row)
+        
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        
+        # Mostra percentuali e valori
+        chart.dataLabels = DataLabelList()
+        chart.dataLabels.showPercent = True
+        chart.dataLabels.showVal = True
+        chart.dataLabels.showCatName = False
+        
+        return chart
+    
     def export(self) -> bytes:
         """
-        Crea il report Excel completo.
+        Crea il report Excel completo con grafici.
         
         Returns:
             Contenuto del file Excel come bytes
@@ -103,11 +203,14 @@ class ExcelExporter:
             ("Totale righe analizzate:", len(self.analisi.df)),
             ("Persone uniche:", self.analisi.df['Destinatario'].nunique()),
             ("Operatori unici:", self.analisi.df['Operatore'].nunique()),
+            ("Ricavi totali:", self.analisi.ricavi_totali()),
             ("Righe scartate:", len(self.df_scartate))
         ]
         for label, value in stats:
             ws_riep.cell(row=row_num, column=1, value=label)
-            ws_riep.cell(row=row_num, column=2, value=value)
+            cell = ws_riep.cell(row=row_num, column=2, value=value)
+            if "Ricavi" in label:
+                cell.number_format = '#,##0.00 €'
             row_num += 1
         row_num += 1
         
@@ -145,6 +248,14 @@ class ExcelExporter:
                         cell.font = Font(bold=True)
         row_num += len(df_riepilogo_ricavi) + 3
         
+        # Utenti per operatore
+        ws_riep.cell(row=row_num, column=1, value="UTENTI PER OPERATORE")
+        ws_riep.cell(row=row_num, column=1).font = Font(bold=True)
+        row_num += 1
+        df_utenti_op = self.analisi.utenti_per_operatore()
+        row_num += self._write_dataframe(ws_riep, df_utenti_op, row_num, 2, True)
+        row_num += 2
+        
         # Prime 10 persone
         ws_riep.cell(row=row_num, column=1, value="PRIME 10 PERSONE PER NUMERO AZIONI")
         ws_riep.cell(row=row_num, column=1).font = Font(bold=True)
@@ -157,6 +268,98 @@ class ExcelExporter:
         ws_riep.column_dimensions['B'].width = 25
         for col in ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O']:
             ws_riep.column_dimensions[col].width = 12
+        
+        # ============================================================
+        # Foglio Grafici
+        # ============================================================
+        ws_grafici = wb.create_sheet("Grafici")
+        
+        # --- Dati per grafico andamento mensile ---
+        ws_grafici.cell(row=1, column=1, value="DATI ANDAMENTO MENSILE")
+        ws_grafici.cell(row=1, column=1).font = Font(bold=True)
+        
+        df_andamento = self.analisi.andamento_mensile()
+        andamento_start_row = 2
+        for r_idx, row in enumerate(dataframe_to_rows(df_andamento, index=False, header=True), 0):
+            for c_idx, value in enumerate(row, 1):
+                cell = ws_grafici.cell(row=andamento_start_row + r_idx, column=c_idx, value=value)
+                if r_idx == 0:
+                    self._apply_header_style(cell)
+                else:
+                    self._apply_cell_style(cell, is_number=(c_idx > 1))
+        
+        andamento_end_row = andamento_start_row + len(df_andamento)
+        num_series = len(df_andamento.columns) - 1  # Escludi colonna Mese
+        
+        # Crea grafico a linee
+        chart_line = self._create_line_chart(
+            ws_grafici, andamento_start_row, andamento_end_row,
+            num_series, "Andamento Mensile Azioni"
+        )
+        ws_grafici.add_chart(chart_line, "H2")
+        
+        # --- Dati per grafico ricavi ---
+        ricavi_start_row = andamento_end_row + 4
+        ws_grafici.cell(row=ricavi_start_row - 1, column=1, value="DATI RICAVI PER CODICE")
+        ws_grafici.cell(row=ricavi_start_row - 1, column=1).font = Font(bold=True)
+        
+        df_ricavi = self.analisi.ricavi_per_codice()
+        # Prepara dati semplificati per il grafico
+        ws_grafici.cell(row=ricavi_start_row, column=1, value="Codice")
+        ws_grafici.cell(row=ricavi_start_row, column=2, value="Ricavo (€)")
+        self._apply_header_style(ws_grafici.cell(row=ricavi_start_row, column=1))
+        self._apply_header_style(ws_grafici.cell(row=ricavi_start_row, column=2))
+        
+        for i, (_, row) in enumerate(df_ricavi.iterrows(), 1):
+            ws_grafici.cell(row=ricavi_start_row + i, column=1, value=row['Codice'])
+            cell = ws_grafici.cell(row=ricavi_start_row + i, column=2, value=row['Ricavo'])
+            cell.number_format = '#,##0.00 €'
+            self._apply_cell_style(ws_grafici.cell(row=ricavi_start_row + i, column=1))
+            self._apply_cell_style(ws_grafici.cell(row=ricavi_start_row + i, column=2), True)
+        
+        ricavi_end_row = ricavi_start_row + len(df_ricavi)
+        
+        # Crea grafico a barre orizzontali
+        chart_bar = self._create_bar_chart(
+            ws_grafici, ricavi_start_row, ricavi_end_row,
+            "Ricavi per Tipo Azione"
+        )
+        ws_grafici.add_chart(chart_bar, "H" + str(ricavi_start_row - 1))
+        
+        # --- Dati per grafico utenti per operatore ---
+        utenti_start_row = ricavi_end_row + 4
+        ws_grafici.cell(row=utenti_start_row - 1, column=1, value="DATI UTENTI PER OPERATORE")
+        ws_grafici.cell(row=utenti_start_row - 1, column=1).font = Font(bold=True)
+        
+        df_utenti = self.analisi.utenti_per_operatore()
+        # Escludi riga TOTALE per il grafico a torta
+        df_utenti_grafico = df_utenti[df_utenti['Operatore'] != 'TOTALE']
+        
+        ws_grafici.cell(row=utenti_start_row, column=1, value="Operatore")
+        ws_grafici.cell(row=utenti_start_row, column=2, value="Numero Utenti")
+        self._apply_header_style(ws_grafici.cell(row=utenti_start_row, column=1))
+        self._apply_header_style(ws_grafici.cell(row=utenti_start_row, column=2))
+        
+        for i, (_, row) in enumerate(df_utenti_grafico.iterrows(), 1):
+            ws_grafici.cell(row=utenti_start_row + i, column=1, value=row['Operatore'])
+            ws_grafici.cell(row=utenti_start_row + i, column=2, value=row['Numero Utenti'])
+            self._apply_cell_style(ws_grafici.cell(row=utenti_start_row + i, column=1))
+            self._apply_cell_style(ws_grafici.cell(row=utenti_start_row + i, column=2), True)
+        
+        utenti_end_row = utenti_start_row + len(df_utenti_grafico)
+        
+        # Crea grafico a torta
+        chart_pie = self._create_pie_chart(
+            ws_grafici, utenti_start_row, utenti_end_row,
+            "Utenti per Operatore"
+        )
+        ws_grafici.add_chart(chart_pie, "H" + str(utenti_start_row - 1))
+        
+        # Imposta larghezze colonne foglio grafici
+        ws_grafici.column_dimensions['A'].width = 25
+        ws_grafici.column_dimensions['B'].width = 15
+        for col in ['C', 'D', 'E', 'F']:
+            ws_grafici.column_dimensions[col].width = 12
         
         # ============================================================
         # Foglio 2: Per Persona-Tipo
@@ -216,15 +419,15 @@ class ExcelExporter:
         # Foglio 8: Ricavi per Mese
         # ============================================================
         ws7 = wb.create_sheet("Ricavi per Mese")
-        df_ricavi = self.analisi.calcolo_ricavi_per_mese()
-        for r_idx, row in enumerate(dataframe_to_rows(df_ricavi, index=False, header=True), 1):
+        df_ricavi_mese = self.analisi.calcolo_ricavi_per_mese()
+        for r_idx, row in enumerate(dataframe_to_rows(df_ricavi_mese, index=False, header=True), 1):
             for c_idx, value in enumerate(row, 1):
                 cell = ws7.cell(row=r_idx, column=c_idx, value=value)
                 if r_idx == 1:
                     self._apply_header_style(cell)
                 else:
                     self._apply_cell_style(cell, is_number=(c_idx > 1))
-                    col_name = df_ricavi.columns[c_idx - 1]
+                    col_name = df_ricavi_mese.columns[c_idx - 1]
                     if '_ricavo' in str(col_name) or col_name == 'Totale_Ricavo':
                         cell.number_format = '#,##0.00 €'
         ws7.column_dimensions['A'].width = 12
