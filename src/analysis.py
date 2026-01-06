@@ -212,8 +212,51 @@ class AnalisiPolitiche:
     
     def ricavi_totali(self) -> float:
         """Calcola il totale dei ricavi."""
-        return (self.df.groupby('Codice').size() * self.df['Codice'].map(self.tariffe)).sum()
+        conteggio = self.df.groupby('Codice').size()
+        ricavi = sum(
+            conteggio.get(codice, 0) * tariffa 
+            for codice, tariffa in self.tariffe.items()
+        )
+        return ricavi
     
     def top_persone(self, n: int = 10) -> pd.DataFrame:
         """Restituisce le prime N persone per numero di azioni."""
         return self.conteggio_per_persona_tipo().nlargest(n, 'Totale')
+    
+    def utenti_per_operatore(self) -> pd.DataFrame:
+        """Conta il numero di utenti unici gestiti da ogni operatore."""
+        utenti = self.df.groupby('Operatore')['Destinatario'].nunique().reset_index()
+        utenti.columns = ['Operatore', 'Numero Utenti']
+        utenti = utenti.sort_values('Numero Utenti', ascending=False)
+        
+        # Aggiungi riga totale
+        totale = pd.DataFrame([{
+            'Operatore': 'TOTALE',
+            'Numero Utenti': self.df['Destinatario'].nunique()
+        }])
+        utenti = pd.concat([utenti, totale], ignore_index=True)
+        
+        return utenti
+    
+    def andamento_mensile(self) -> pd.DataFrame:
+        """Restituisce l'andamento mensile delle azioni per tipo."""
+        df_temp = self.df.copy()
+        df_temp['Mese'] = df_temp['Anno-Mese'].astype(str)
+        
+        pivot = pd.pivot_table(
+            df_temp, index='Mese', columns='Tipo',
+            aggfunc='size', fill_value=0
+        ).reset_index()
+        
+        # Aggiungi totale
+        tipi = [c for c in pivot.columns if c != 'Mese']
+        pivot['Totale'] = pivot[tipi].sum(axis=1)
+        
+        return pivot.sort_values('Mese')
+    
+    def ricavi_per_codice(self) -> pd.DataFrame:
+        """Calcola i ricavi totali per ogni codice azione."""
+        conteggio = self.df.groupby('Codice').size().reset_index(name='Conteggio')
+        conteggio['Tariffa'] = conteggio['Codice'].map(self.tariffe)
+        conteggio['Ricavo'] = conteggio['Conteggio'] * conteggio['Tariffa']
+        return conteggio.sort_values('Ricavo', ascending=True)  # Ascending per grafico orizzontale

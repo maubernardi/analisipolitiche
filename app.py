@@ -5,15 +5,18 @@ Entry point dell'applicazione Streamlit.
 
 import streamlit as st
 from datetime import datetime
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Import moduli locali
 from src import ConfigManager, DataLoader, AnalisiPolitiche, ExcelExporter
 
 # Configurazione pagina
 st.set_page_config(
-    page_title="Analisi Politiche Attive progetto GOL - GIRASOLE",
+    page_title="Analisi Politiche",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 
@@ -143,6 +146,107 @@ def render_results(df, df_scartate, analisi):
         ricavi_totali = analisi.ricavi_totali()
         st.metric("Ricavi Totali", f"€ {ricavi_totali:,.2f}")
     
+    # --- GRAFICI ---
+    st.markdown("---")
+    
+    col_grafico1, col_grafico2 = st.columns(2)
+    
+    with col_grafico1:
+        st.subheader("📈 Andamento Mensile Azioni")
+        df_andamento = analisi.andamento_mensile()
+        
+        # Prepara dati per il grafico a linee
+        tipi_presenti = [c for c in df_andamento.columns if c not in ['Mese', 'Totale']]
+        
+        fig_linee = go.Figure()
+        
+        # Aggiungi una linea per ogni tipo
+        colori = {'A': '#1f77b4', 'B': '#ff7f0e', 'C': '#2ca02c'}
+        for tipo in tipi_presenti:
+            fig_linee.add_trace(go.Scatter(
+                x=df_andamento['Mese'],
+                y=df_andamento[tipo],
+                mode='lines+markers',
+                name=f'Tipo {tipo}',
+                line=dict(color=colori.get(tipo, '#666666'), width=2),
+                marker=dict(size=8)
+            ))
+        
+        # Aggiungi linea totale
+        fig_linee.add_trace(go.Scatter(
+            x=df_andamento['Mese'],
+            y=df_andamento['Totale'],
+            mode='lines+markers',
+            name='Totale',
+            line=dict(color='#d62728', width=3, dash='dash'),
+            marker=dict(size=10)
+        ))
+        
+        fig_linee.update_layout(
+            xaxis_title="Mese",
+            yaxis_title="Quantità",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            height=400,
+            margin=dict(l=20, r=20, t=40, b=20)
+        )
+        
+        st.plotly_chart(fig_linee, use_container_width=True)
+    
+    with col_grafico2:
+        st.subheader("💰 Ricavi per Tipo Azione")
+        df_ricavi = analisi.ricavi_per_codice()
+        
+        # Grafico a barre orizzontali
+        fig_barre = go.Figure(go.Bar(
+            x=df_ricavi['Ricavo'],
+            y=df_ricavi['Codice'],
+            orientation='h',
+            text=df_ricavi['Ricavo'].apply(lambda x: f'€ {x:,.2f}'),
+            textposition='outside',
+            marker_color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'][:len(df_ricavi)]
+        ))
+        
+        fig_barre.update_layout(
+            xaxis_title="Ricavo (€)",
+            yaxis_title="Codice Azione",
+            height=400,
+            margin=dict(l=20, r=80, t=40, b=20),
+            xaxis=dict(tickformat='€,.0f')
+        )
+        
+        st.plotly_chart(fig_barre, use_container_width=True)
+    
+    # --- UTENTI PER OPERATORE ---
+    st.markdown("---")
+    st.subheader("👥 Utenti per Operatore")
+    
+    col_tabella, col_grafico = st.columns([1, 2])
+    
+    with col_tabella:
+        df_utenti = analisi.utenti_per_operatore()
+        st.dataframe(df_utenti, use_container_width=True, hide_index=True)
+    
+    with col_grafico:
+        # Escludi la riga TOTALE per il grafico
+        df_utenti_grafico = df_utenti[df_utenti['Operatore'] != 'TOTALE']
+        
+        fig_utenti = px.pie(
+            df_utenti_grafico, 
+            values='Numero Utenti', 
+            names='Operatore',
+            hole=0.4,  # Grafico a ciambella
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+        fig_utenti.update_traces(textposition='inside', textinfo='percent+value')
+        fig_utenti.update_layout(
+            height=350,
+            margin=dict(l=20, r=20, t=20, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+        )
+        st.plotly_chart(fig_utenti, use_container_width=True)
+    
+    st.markdown("---")
+    
     # Tabs per le diverse viste
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📋 Per Persona",
@@ -247,7 +351,7 @@ def main():
     init_session_state()
     
     # Titolo
-    st.title("📊 Analisi Politiche attive progetto GOL - Girasole")
+    st.title("📊 Analisi Politiche")
     st.markdown("Carica un file Excel per analizzare conteggi e ricavi delle azioni.")
     
     # Sidebar
