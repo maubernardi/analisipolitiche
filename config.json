@@ -1,0 +1,18 @@
+{
+    "tariffe": {
+        "A03": 37.14,
+        "A06": 35.57,
+        "B03": 37.14,
+        "B04": 37.14,
+        "C06": 499.88
+    },
+    "filtri": {
+        "escludi_eventi": [
+            "Annullamento (prima dell'inizio)",
+            "Proposta"
+        ]
+    },
+    "output": {
+        "prefisso_nome": "export_analisi"
+    }
+}

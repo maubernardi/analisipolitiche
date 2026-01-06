@@ -6,16 +6,20 @@ __pycache__/
 .Python
 venv/
 ENV/
+.env
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+.spyderproject
+.spyproject
 
 # OS
 .DS_Store
 Thumbs.db
+*~
 
 # Build
 build/
@@ -26,4 +30,10 @@ dist/
 # Output files
 output/
 *.xlsx
-!requirements.txt
+!config.json
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Logs
+*.log
