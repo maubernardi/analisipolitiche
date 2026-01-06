@@ -162,3 +162,42 @@ class DataLoader:
             return {}
         
         return df_scartate['_motivo_esclusione'].value_counts().to_dict()
+    
+    def conteggio_scartate_per_codice(self, df_scartate: pd.DataFrame) -> pd.DataFrame:
+        """
+        Conta le righe scartate per codice (quelle non presenti nelle tariffe).
+        
+        Args:
+            df_scartate: DataFrame con le righe scartate
+        
+        Returns:
+            DataFrame con Codice e Conteggio delle righe scartate per codice non in tariffe
+        """
+        if len(df_scartate) == 0:
+            return pd.DataFrame(columns=['Codice', 'Conteggio'])
+        
+        # Filtra solo le righe scartate per codice non in tariffe
+        mask = df_scartate['_motivo_esclusione'].str.contains('Codice non in tariffe', na=False)
+        df_codici = df_scartate[mask].copy()
+        
+        if len(df_codici) == 0:
+            return pd.DataFrame(columns=['Codice', 'Conteggio'])
+        
+        # Estrai il codice dal campo Attività se presente, altrimenti dal motivo
+        if 'Codice' in df_codici.columns:
+            conteggio = df_codici.groupby('Codice').size().reset_index(name='Conteggio')
+        else:
+            # Estrai codice da Attività
+            df_codici['Codice'] = df_codici['Attività'].str.extract(r'^([A-Z]\d+)')
+            conteggio = df_codici.groupby('Codice').size().reset_index(name='Conteggio')
+        
+        conteggio = conteggio.sort_values('Conteggio', ascending=False)
+        
+        # Aggiungi riga totale
+        totale = pd.DataFrame([{
+            'Codice': 'TOTALE',
+            'Conteggio': conteggio['Conteggio'].sum()
+        }])
+        conteggio = pd.concat([conteggio, totale], ignore_index=True)
+        
+        return conteggio

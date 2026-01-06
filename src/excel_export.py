@@ -43,6 +43,41 @@ class ExcelExporter:
         self.analisi = analisi
         self.df_scartate = df_scartate
     
+    def _conteggio_scartate_per_codice(self) -> pd.DataFrame:
+        """
+        Conta le righe scartate per codice (quelle non presenti nelle tariffe).
+        
+        Returns:
+            DataFrame con Codice e Conteggio
+        """
+        if len(self.df_scartate) == 0:
+            return pd.DataFrame(columns=['Codice', 'Conteggio'])
+        
+        # Filtra solo le righe scartate per codice non in tariffe
+        mask = self.df_scartate['_motivo_esclusione'].str.contains('Codice non in tariffe', na=False)
+        df_codici = self.df_scartate[mask].copy()
+        
+        if len(df_codici) == 0:
+            return pd.DataFrame(columns=['Codice', 'Conteggio'])
+        
+        # Estrai il codice
+        if 'Codice' in df_codici.columns:
+            conteggio = df_codici.groupby('Codice').size().reset_index(name='Conteggio')
+        else:
+            df_codici['Codice'] = df_codici['Attività'].str.extract(r'^([A-Z]\d+)')
+            conteggio = df_codici.groupby('Codice').size().reset_index(name='Conteggio')
+        
+        conteggio = conteggio.sort_values('Conteggio', ascending=False)
+        
+        # Aggiungi riga totale
+        totale = pd.DataFrame([{
+            'Codice': 'TOTALE',
+            'Conteggio': conteggio['Conteggio'].sum()
+        }])
+        conteggio = pd.concat([conteggio, totale], ignore_index=True)
+        
+        return conteggio
+    
     def _apply_header_style(self, cell) -> None:
         """Applica stile intestazione."""
         cell.font = self.HEADER_FONT
@@ -213,6 +248,15 @@ class ExcelExporter:
                 cell.number_format = '#,##0.00 €'
             row_num += 1
         row_num += 1
+        
+        # Azioni scartate per codice (non in tariffe)
+        df_scartate_codice = self._conteggio_scartate_per_codice()
+        if len(df_scartate_codice) > 1:  # Più di solo la riga TOTALE
+            ws_riep.cell(row=row_num, column=1, value="AZIONI SCARTATE PER CODICE (non in tariffe)")
+            ws_riep.cell(row=row_num, column=1).font = Font(bold=True, color="FF0000")
+            row_num += 1
+            row_num += self._write_dataframe(ws_riep, df_scartate_codice, row_num, 2, True)
+            row_num += 2
         
         # Totali per tipo
         ws_riep.cell(row=row_num, column=1, value="TOTALI PER TIPO")

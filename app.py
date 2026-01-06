@@ -146,6 +146,25 @@ def render_results(df, df_scartate, analisi):
         ricavi_totali = analisi.ricavi_totali()
         st.metric("Ricavi Totali", f"€ {ricavi_totali:,.2f}")
     
+    # --- AZIONI SCARTATE PER CODICE ---
+    if len(df_scartate) > 0:
+        loader = DataLoader(st.session_state.tariffe, st.session_state.escludi_eventi)
+        df_scartate_codice = loader.conteggio_scartate_per_codice(df_scartate)
+        
+        if len(df_scartate_codice) > 1:  # Più di solo la riga TOTALE
+            st.markdown("---")
+            st.subheader("⚠️ Azioni Scartate per Codice (non in tariffe)")
+            
+            col_tabella, col_info = st.columns([1, 2])
+            with col_tabella:
+                st.dataframe(df_scartate_codice, use_container_width=True, hide_index=True)
+            with col_info:
+                st.info(
+                    "Questi codici sono stati trovati nel file ma non sono presenti "
+                    "nella configurazione delle tariffe. Per includerli nell'analisi, "
+                    "aggiungi i codici mancanti nella sezione Tariffe della barra laterale."
+                )
+    
     # --- GRAFICI ---
     st.markdown("---")
     
