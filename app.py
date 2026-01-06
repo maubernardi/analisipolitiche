@@ -11,7 +11,7 @@ from src import ConfigManager, DataLoader, AnalisiPolitiche, ExcelExporter
 
 # Configurazione pagina
 st.set_page_config(
-    page_title="Analisi Politiche",
+    page_title="Analisi Politiche Attive progetto GOL - GIRASOLE",
     page_icon="📊",
     layout="wide"
 )
