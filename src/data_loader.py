@@ -43,20 +43,29 @@ class DataLoader:
         # Aggiungi colonna per tracciare l'indice originale (riga Excel)
         df['_indice_originale'] = df.index + 2  # +2 per header Excel
         
+        # Estrai codice azione PRIMA dei filtri (es. A03, B04, C06)
+        df['Codice'] = df['Attività'].str.extract(r'^([A-Z]\d+)')
+        
         # 1. Escludi righe con eventi da escludere
+        # Nota speciale: "Proposta" viene escluso SOLO se l'azione non è C06
         for evento in self.escludi_eventi:
-            mask = df['Evento'] == evento
+            if evento == "Proposta":
+                # Per "Proposta": escludi solo righe che NON sono C06
+                mask = (df['Evento'] == evento) & (df['Codice'] != 'C06')
+                motivo = "Evento escluso: Proposta (non C06)"
+            else:
+                # Per gli altri eventi: esclusione standard
+                mask = df['Evento'] == evento
+                motivo = f"Evento escluso: {evento}"
+            
             scartate = df[mask].copy()
             if len(scartate) > 0:
-                scartate['_motivo_esclusione'] = f"Evento escluso: {evento}"
+                scartate['_motivo_esclusione'] = motivo
                 righe_scartate.append(scartate)
             df = df[~mask]
         
         # Crea una copia per evitare warning pandas
         df = df.copy()
-        
-        # Estrai codice azione (es. A03, B04, C06)
-        df['Codice'] = df['Attività'].str.extract(r'^([A-Z]\d+)')
         
         # 2. Escludi righe con codici non validi (non in tariffe)
         mask_codici_invalidi = ~df['Codice'].isin(self.codici_validi)

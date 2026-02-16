@@ -60,8 +60,10 @@ Il file `config.json` contiene le impostazioni dell'applicazione:
 | Sezione | Parametro | Descrizione |
 |---------|-----------|-------------|
 | `tariffe.*` | Codice: Valore | Tariffa in euro per ogni codice azione |
-| `filtri.escludi_eventi` | Lista | Eventi da escludere dall'analisi |
+| `filtri.escludi_eventi` | Lista | Eventi da escludere dall'analisi (con eccezioni per C06) |
 | `output.prefisso_nome` | String | Prefisso per i file di output |
+
+**Nota importante sui filtri**: L'evento "Proposta" viene escluso per tutte le azioni TRANNE C06, che deve mantenere le proposte dato che utilizza la Data Proposta come riferimento.
 
 Le tariffe e gli eventi possono essere modificati anche dalla sidebar dell'applicazione.
 

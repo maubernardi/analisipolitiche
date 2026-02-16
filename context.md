@@ -352,11 +352,14 @@ plotly>=5.18.0         # Grafici interattivi
 - Applicato in conteggi per garantire coerenza
 
 ### Filtraggio Righe
-Due step:
-1. Righe con evento in `escludi_eventi`
-2. Righe con codice non in tariffe
+Tre step:
+1. **Estrazione codice**: Prima di ogni filtro, estrae codice azione dalle righe
+2. **Filtraggio eventi**: Righe con evento in `escludi_eventi`
+   - **Eccezione**: L'evento "Proposta" è escluso SOLO per le azioni che NON sono C06
+   - Le azioni C06 in "Proposta" vengono conservate (dato che C06 utilizza Data Proposta)
+3. Righe con codice non in tariffe
 
-Tutte tracciate in `df_scartate` con motivo
+Tutte tracciate in `df_scartate` con motivo di esclusione dettagliato
 
 ### Calcolo Ricavi
 - Formula semplice: `Conteggio_Codice × Tariffa_Codice`
